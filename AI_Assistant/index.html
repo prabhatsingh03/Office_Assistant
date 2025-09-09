@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <title>AI EA - Daily Interactive Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom styles for the switch component to match the original UI */
+        .switch { position: relative; display: inline-block; width: 40px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #2196F3; }
+        input:checked + .slider:before { transform: translateX(16px); }
+        /* Custom styles for range slider track and thumb */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 9999px; background: #2563eb; cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #d1d5db; border-radius: 9999px; }
+        /* Simple spinner for loading state */
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #09f; animation: spin 1s ease infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-indigo-50 text-gray-900">
+
+    <div class="min-h-screen p-6 md:p-10 space-y-8 max-w-6xl mx-auto">
+        <header class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold">AI EA – Daily Interactive Agent</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <input type="date" id="current-date" class="w-40 border rounded-lg px-2 py-1 bg-slate-100 text-slate-600 cursor-not-allowed" readonly>
+            </div>
+        </header>
+
+        <!-- Outlook Connection Bar -->
+        <div class="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-4 shadow-sm flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i data-lucide="mail" class="text-blue-600"></i>
+                <div>
+                    <h3 class="font-semibold">Connect to your Office</h3>
+                    <span id="outlook-status" class="text-sm text-gray-500">Status: Not connected</span>
+                </div>
+            </div>
+            <div id="error-message" class="text-sm text-red-600 mx-4"></div>
+            <div id="connection-buttons" class="flex gap-2">
+                 <a href="/api/outlook/auth" class="bg-blue-600 text-white px-4 py-2 rounded-2xl hover:bg-blue-700">Connect Outlook</a>
+            </div>
+        </div>
+        
+        <!-- Sections Container -->
+        <div id="sections-container" class="space-y-8">
+        
+            <!-- Top Priorities -->
+            <div class="section">
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="trending-up"></i><h2 class="text-xl font-semibold">Top Priorities</h2></div>
+                <div class="p-5 rounded-2xl border border-slate-200 bg-white/70 backdrop-blur shadow-sm">
+                    <div id="priorities-list" class="flex flex-wrap gap-2 mb-3"></div>
+                    <div class="flex items-center gap-2">
+                        <input id="new-priority-input" type="text" placeholder="Add priority…" class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <button id="add-priority-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-2xl flex items-center gap-1 hover:bg-indigo-700 shrink-0 shadow-sm">
+                            <i data-lucide="plus" class="h-4 w-4"></i> Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inbox Snapshot -->
+            <div class="section">
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="mail"></i><h2 class="text-xl font-semibold">Inbox Snapshot</h2></div>
+                <div class="p-5 rounded-2xl border border-slate-200 bg-white/70 backdrop-blur shadow-sm">
+                    <div class="flex items-center gap-2 mb-3">
+                        <button id="auto-snapshot-btn" class="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl text-sm hover:bg-blue-100">Auto-fill from Outlook (Today)</button>
+                        <div id="inbox-loader" class="hidden items-center gap-2 text-xs text-gray-500">
+                            <div class="spinner" style="width:20px;height:20px;border-width:3px"></div>
+                            <span>Fetching…</span>
+                        </div>
+                        <div class="ml-auto flex items-center gap-2">
+                            <input id="inbox-manual-input" type="text" placeholder="Add manually…" class="w-72 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <button id="inbox-add-btn" class="bg-white text-gray-800 px-3 py-1.5 rounded-xl text-sm hover:bg-gray-50 border border-slate-200 shadow-sm">Add</button>
+                        </div>
+                    </div>
+                    <div id="inbox-title" class="text-sm font-semibold text-slate-700 mb-2"></div>
+                    <ul id="inbox-list" class="list-disc list-outside marker:text-indigo-500 pl-5 space-y-2 text-gray-800"></ul>
+                </div>
+            </div>
+
+            <!-- Today's Meetings -->
+            <div class="section">
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="calendar"></i><h2 class="text-xl font-semibold">Today's Meetings</h2></div>
+                <div id="meetings-list" class="p-5 rounded-2xl border border-slate-200 bg-white/70 backdrop-blur shadow-sm space-y-3">
+                    <p class="text-sm text-gray-500">Connect to Outlook to see your meetings.</p>
+                </div>
+            </div>
+
+            <!-- Projects & Risk Register -->
+            <div class="section">
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="shield"></i><h2 class="text-xl font-semibold">Projects & Risk Register</h2></div>
+                <div class="p-5 rounded-2xl border border-slate-200 bg-white/70 backdrop-blur shadow-sm">
+                    <div id="projects-list" class="space-y-4">
+                        <!-- Projects will be rendered here by JS -->
+                    </div>
+                    <div class="mt-4">
+                        <button id="add-project-btn" class="bg-white text-gray-800 px-4 py-2 rounded-2xl flex items-center gap-1 hover:bg-gray-50 border border-slate-200 shadow-sm text-sm">
+                            <i data-lucide="plus" class="h-4 w-4"></i> Add Project
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Protocol & Diplomacy -->
+            <div class="section">
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="filter"></i><h2 class="text-xl font-semibold">Protocol & Diplomacy</h2></div>
+                <div class="p-5 rounded-2xl border border-slate-200 bg-white/70 backdrop-blur shadow-sm">
+                    <div class="grid md:grid-cols-12 gap-3 items-center">
+                        <div class="md:col-span-2 flex items-center gap-2"><span class="text-sm">Govt</span><label class="switch"><input type="checkbox" id="protocol-gov"><span class="slider"></span></label></div>
+                        <div class="md:col-span-2 flex items-center gap-2"><span class="text-sm">International</span><label class="switch"><input type="checkbox" id="protocol-intl" checked><span class="slider"></span></label></div>
+                        <input id="protocol-notes" class="md:col-span-8 w-full border rounded-lg px-3 py-2" placeholder="Protocol notes..." value="Prep MoU protocol pack for Japanese delegation (Givery): seating, plaques, flag, photo-op).">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Time Allocation Targets -->
+            <div class="section">
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="clock"></i><h2 class="text-xl font-semibold">Time Allocation Targets</h2></div>
+                <div class="p-4 border rounded-2xl shadow-sm">
+                    <div id="time-split-container" class="grid md:grid-cols-4 gap-4"></div>
+                    <div class="text-xs text-gray-500 mt-2">Tip: Ensure totals ≈ 100% (BD + Internal + Strategy + Admin).</div>
+                </div>
+            </div>
+
+            
+
+            <!-- Generated Briefing -->
+            <div class="section">
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="clipboard-list"></i><h2 class="text-xl font-semibold">Generated CEO Briefing</h2></div>
+                <div id="briefing-output-container" class="p-5 rounded-2xl border border-slate-200 bg-white/70 backdrop-blur shadow-sm min-h-[100px]">
+                    <div class="flex items-center gap-2 mb-3">
+                        <button id="generate-brief-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-2xl flex items-center gap-1 hover:bg-indigo-700 shadow-sm">
+                            <i data-lucide="send" class="h-4 w-4"></i> Generate Brief
+                        </button>
+                    </div>
+                    <div id="briefing-loader" class="hidden justify-center items-center"><div class="spinner"></div></div>
+                    <div id="briefing-output" class="space-y-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="pt-4 text-xs text-gray-500">© Simon India 2.0 – AI EA Prototype</footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- STATE MANAGEMENT ---
+            let state = {
+                date: new Date().toISOString().slice(0, 10),
+                priorities: [],
+                inboxSummary: "",
+                inboxItems: [],
+                meetings: [],
+                projects: [],
+                protocol: { gov: false, intl: true, notes: "Prep MoU protocol pack for Japanese delegation (Givery): seating, plaques, flag, photo-op)." },
+                timeSplit: { BD: 40, Internal: 35, Strategy: 15, Admin: 10 },
+                hoursWindow: 24,
+            };
+
+            // --- DOM ELEMENTS ---
+            const dom = {
+                currentDate: document.getElementById('current-date'),
+                outlookStatus: document.getElementById('outlook-status'),
+                connectionButtons: document.getElementById('connection-buttons'),
+                errorMessage: document.getElementById('error-message'),
+                prioritiesList: document.getElementById('priorities-list'),
+                newPriorityInput: document.getElementById('new-priority-input'),
+                addPriorityBtn: document.getElementById('add-priority-btn'),
+                inboxList: document.getElementById('inbox-list'),
+                modal: null,
+                modalTitle: null,
+                modalBody: null,
+                modalClose: null,
+                inboxManualInput: document.getElementById('inbox-manual-input'),
+                inboxAddBtn: document.getElementById('inbox-add-btn'),
+                meetingsList: document.getElementById('meetings-list'),
+                projectsList: document.getElementById('projects-list'),
+                addProjectBtn: document.getElementById('add-project-btn'),
+                protocolGov: document.getElementById('protocol-gov'),
+                protocolIntl: document.getElementById('protocol-intl'),
+                protocolNotes: document.getElementById('protocol-notes'),
+                timeSplitContainer: document.getElementById('time-split-container'),
+                // promptPreview removed; backend handles prompt composition
+                generateBriefBtn: document.getElementById('generate-brief-btn'),
+                briefingLoader: document.getElementById('briefing-loader'),
+                briefingOutput: document.getElementById('briefing-output'),
+            };
+
+            // --- DEBOUNCE FOR SAVING ---
+            const debounce = (func, delay) => {
+                let timeout;
+                return function(...args) {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(this, args), delay);
+                };
+            };
+            
+            // --- TIME HELPERS ---
+            const pad2 = (n) => (n < 10 ? `0${n}` : `${n}`);
+            const timeHHMM = (val) => {
+                if (!val) return '—';
+                const s = typeof val === 'string' ? val : (val?.dateTime || '');
+                if (s && s.length >= 16) return s.slice(11, 16);
+                const d = new Date(s);
+                if (isNaN(d.getTime())) return '—';
+                return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+            };
+
+            // --- BASIC MARKDOWN RENDERER (safe, minimal) ---
+            const escapeHtml = (str) => str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+
+            const renderMarkdown = (input) => {
+                if (!input) return '';
+                const text = escapeHtml(input);
+                const lines = text.split(/\r?\n/);
+                let html = '';
+                let inUl = false;
+                let inOl = false;
+
+                const closeLists = () => {
+                    if (inUl) { html += '</ul>'; inUl = false; }
+                    if (inOl) { html += '</ol>'; inOl = false; }
+                };
+
+                const boldify = (s) => s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+                for (let raw of lines) {
+                    const line = raw.trimEnd();
+                    if (!line) { closeLists(); html += '<br />'; continue; }
+
+                    // blockquote
+                    if (line.startsWith('&gt; ')) {
+                        closeLists();
+                        html += `<blockquote class=\"border-l-4 border-slate-300 pl-3 italic text-slate-700\">${boldify(line.slice(5))}</blockquote>`;
+                        continue;
+                    }
+
+                    // ordered list 1) or 1.
+                    const olMatch = line.match(/^(\d+)[\)\.]\s+(.*)$/);
+                    if (olMatch) {
+                        if (!inOl) { closeLists(); html += '<ol class=\"list-decimal pl-5 space-y-1\">'; inOl = true; }
+                        html += `<li>${boldify(olMatch[2])}</li>`;
+                        continue;
+                    }
+
+                    // unordered list * or -
+                    if (line.startsWith('* ') || line.startsWith('- ')) {
+                        if (!inUl) { closeLists(); html += '<ul class=\"list-disc pl-5 space-y-1\">'; inUl = true; }
+                        html += `<li>${boldify(line.slice(2))}</li>`;
+                        continue;
+                    }
+
+                    // normal paragraph line
+                    closeLists();
+                    html += `<p>${boldify(line)}</p>`;
+                }
+
+                closeLists();
+                return html;
+            };
+            
+            // --- PROMPT GENERATION (handled server-side) ---
+            const generatePrompt = () => {};
+
+            // --- RENDER FUNCTIONS ---
+            const renderInbox = () => {
+                dom.inboxList.innerHTML = '';
+                const items = (state.inboxSummary || '').split(/\n/).map(s => s.trim()).filter(Boolean);
+                // Extract heading line if present and render as title
+                let title = '';
+                if (items.length && /^[A-Za-z].*\d{4}-\d{2}-\d{2}$/.test(items[0])) {
+                    title = items.shift();
+                }
+                document.getElementById('inbox-title').textContent = title;
+                items.forEach((item, idx) => {
+                    const li = document.createElement('li');
+                    li.className = 'cursor-pointer hover:text-indigo-700';
+                    li.dataset.idx = idx;
+                    li.innerHTML = `<span>${renderMarkdown(item)}</span> <button data-idx=\"${idx}\" class=\"inbox-remove text-slate-400 hover:text-red-500 text-xs ml-2\">Remove</button>`;
+                    dom.inboxList.appendChild(li);
+                });
+                // Persist a parallel array to avoid index mismatch after title shift
+                dom.inboxList.dataset.baseOffset = title ? 1 : 0;
+            };
+            const renderPriorities = () => {
+                dom.prioritiesList.innerHTML = '';
+                state.priorities.forEach(p => {
+                    const tag = document.createElement('span');
+                    tag.className = 'inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm border';
+                    tag.innerHTML = `${p.text} <button data-id="${p.id}" class="remove-priority-btn hover:opacity-70"><i data-lucide="trash-2" class="h-4 w-4"></i></button>`;
+                    dom.prioritiesList.appendChild(tag);
+                });
+                lucide.createIcons();
+                generatePrompt();
+            };
+            
+            const renderProjects = () => {
+                dom.projectsList.innerHTML = '';
+                state.projects.forEach((p) => {
+                    const projectEl = document.createElement('div');
+                    projectEl.className = 'grid md:grid-cols-12 gap-2 items-center';
+                    projectEl.innerHTML = `
+                        <input data-id="${p.id}" data-field="name" class="md:col-span-3 w-full border rounded-lg px-3 py-2 project-input" value="${p.name}">
+                        <div class="md:col-span-3">
+                            <div class="flex items-center justify-between text-xs text-gray-500 mb-1"><span>Health</span><span id="health-value-${p.id}">${p.health}%</span></div>
+                            <input type="range" data-id="${p.id}" data-field="health" min="0" max="100" value="${p.health}" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer project-input">
+                        </div>
+                        <input data-id="${p.id}" data-field="risk" class="md:col-span-2 w-full border rounded-lg px-3 py-2 project-input" value="${p.risk}">
+                        <input data-id="${p.id}" data-field="action" class="md:col-span-3 w-full border rounded-lg px-3 py-2 project-input" value="${p.action}">
+                        <div class="md:col-span-1 flex justify-end">
+                            <button data-id="${p.id}" class="remove-project-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                        </div>
+                    `;
+                    dom.projectsList.appendChild(projectEl);
+                });
+                lucide.createIcons();
+            };
+            
+            const renderTimeSplit = () => {
+                dom.timeSplitContainer.innerHTML = '';
+                const entries = [
+                    ['BD', state.timeSplit.BD],
+                    ['Internal', state.timeSplit.Internal],
+                    ['Strategy', state.timeSplit.Strategy],
+                    ['Admin', state.timeSplit.Admin],
+                ];
+                entries.forEach(([k, v]) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'space-y-1';
+                    wrapper.innerHTML = `
+                        <div class="flex items-center justify-between text-xs text-gray-500">
+                            <span>${k}</span>
+                            <span id="ts-val-${k}">${v}%</span>
+                        </div>
+                        <input type="range" min="0" max="100" value="${v}" data-key="${k}" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer time-split-input" />
+                    `;
+                    dom.timeSplitContainer.appendChild(wrapper);
+                });
+            };
+
+            const renderMeetings = () => {
+                dom.meetingsList.innerHTML = '';
+                if (!state.meetings.length) {
+                    const p = document.createElement('p');
+                    p.className = 'text-sm text-gray-500';
+                    p.textContent = 'No meetings found. Connect to Outlook or add meetings.';
+                    dom.meetingsList.appendChild(p);
+                    return;
+                }
+                state.meetings.forEach((m) => {
+                    const row = document.createElement('div');
+                    row.className = 'grid md:grid-cols-12 gap-2 items-center text-sm';
+                    row.innerHTML = `
+                        <div class="md:col-span-2">${m.time || '—'}</div>
+                        <div class="md:col-span-4">${m.subject || m.title || '(no subject)'}</div>
+                        <div class="md:col-span-2">${(m.location && (m.location.displayName || m.location)) || '—'}</div>
+                        <div class="md:col-span-4">${m.brief || ''}</div>
+                    `;
+                    dom.meetingsList.appendChild(row);
+                });
+            };
+
+            const setError = (msg) => {
+                dom.errorMessage.textContent = msg || '';
+            };
+
+            const updateConnectionStatus = (isConnected) => {
+                dom.outlookStatus.textContent = `Status: ${isConnected ? 'Connected' : 'Not connected'}`;
+                if (isConnected) {
+                    dom.connectionButtons.innerHTML = `
+                        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm bg-green-100 text-green-800 border border-green-200">
+                            <i data-lucide="check-circle" class="h-4 w-4"></i> Connected
+                        </span>
+                    `;
+                } else {
+                    dom.connectionButtons.innerHTML = `
+                        <a href="/api/outlook/auth" class="bg-blue-600 text-white px-4 py-2 rounded-2xl hover:bg-blue-700">Connect Outlook</a>
+                    `;
+                }
+                lucide.createIcons();
+            };
+            
+            // --- DATA FETCHING & SAVING ---
+            const fetchPriorities = async () => {
+                try {
+                    const res = await fetch('/api/priorities');
+                    const data = await res.json();
+                    state.priorities = Array.isArray(data) ? data : [];
+                    renderPriorities();
+                } catch (e) {
+                    setError('Could not load priorities.');
+                }
+            };
+
+            const savePriority = async (text) => {
+                try {
+                    const res = await fetch('/api/priorities', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text })
+                    });
+                    if (res.ok) {
+                        const created = await res.json();
+                        state.priorities.push(created);
+                        renderPriorities();
+                    }
+                } catch (e) {
+                    setError('Failed to add priority.');
+                }
+            };
+
+            const deletePriorityById = async (id) => {
+                try {
+                    const res = await fetch(`/api/priorities/${id}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        state.priorities = state.priorities.filter(p => p.id !== id);
+                        renderPriorities();
+                    }
+                } catch (e) {
+                    setError('Failed to delete priority.');
+                }
+            };
+
+            const fetchProtocol = async () => {
+                try {
+                    const res = await fetch('/api/protocol');
+                    const data = await res.json();
+                    state.protocol = { gov: !!data.gov, intl: !!data.intl, notes: data.notes || '' };
+                    dom.protocolGov.checked = state.protocol.gov;
+                    dom.protocolIntl.checked = state.protocol.intl;
+                    dom.protocolNotes.value = state.protocol.notes;
+                } catch (_) {}
+            };
+
+            const saveProtocol = async () => {
+                try {
+                    await fetch('/api/protocol', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(state.protocol)
+                    });
+                } catch (_) {}
+            };
+
+            const fetchTimeSplit = async () => {
+                try {
+                    const res = await fetch('/api/time-split');
+                    const data = await res.json();
+                    state.timeSplit = {
+                        BD: data.BD ?? state.timeSplit.BD,
+                        Internal: data.Internal ?? state.timeSplit.Internal,
+                        Strategy: data.Strategy ?? state.timeSplit.Strategy,
+                        Admin: data.Admin ?? state.timeSplit.Admin,
+                    };
+                    renderTimeSplit();
+                } catch (_) {
+                    renderTimeSplit();
+                }
+            };
+
+            const saveTimeSplit = async () => {
+                try {
+                    await fetch('/api/time-split', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(state.timeSplit)
+                    });
+                } catch (_) {}
+            };
+
+            const fetchMeetings = async () => {
+                try {
+                    const res = await fetch(`/api/meetings?date=${encodeURIComponent(state.date)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Normalize to display
+                        state.meetings = Array.isArray(data) ? data.map(m => ({
+                            time: m.time,
+                            subject: m.title,
+                            location: m.location,
+                            brief: m.brief,
+                        })) : [];
+                        renderMeetings();
+                    }
+                } catch (_) {}
+            };
+
+            const fetchOutlookData = async () => {
+                try {
+                    const statusRes = await fetch('/api/outlook/status');
+                    const statusJson = await statusRes.json();
+                    updateConnectionStatus(!!statusJson.connected);
+                    if (!statusJson.connected) return;
+                    const response = await fetch(`/api/outlook/events?hours=${encodeURIComponent(state.hoursWindow)}`);
+                    if (response.status === 401) {
+                        updateConnectionStatus(false);
+                        return;
+                    }
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    const data = await response.json();
+                    const events = Array.isArray(data?.value) ? data.value : [];
+                    // Merge lightweight preview into state.meetings (non-destructive)
+                    const outlookMeetings = events.map(e => ({
+                        time: (e.start?.dateTime || '').slice(11, 16),
+                        subject: e.subject || '(no subject)',
+                        location: e.location?.displayName || 'VC',
+                        brief: '(from Outlook)'
+                    }));
+                    const merged = [...outlookMeetings, ...state.meetings];
+                    state.meetings = merged;
+                    renderMeetings();
+                    updateConnectionStatus(true);
+                } catch (err) {
+                    updateConnectionStatus(false);
+                }
+            };
+
+            const fetchProjects = async () => {
+                try {
+                    const response = await fetch('/api/projects');
+                    state.projects = await response.json();
+                    renderProjects();
+                } catch (err) { setError("Could not load projects."); }
+            };
+
+            const saveProject = async (id) => {
+                const project = state.projects.find(p => p.id === id);
+                if (!project) return;
+                try {
+                    await fetch(`/api/projects/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(project)
+                    });
+                } catch (err) { setError(`Failed to save project ${id}.`); }
+            };
+            const debouncedSaveProject = debounce(saveProject, 500);
+
+            // --- EVENT LISTENERS ---
+            dom.prioritiesList.addEventListener('click', (e) => {
+                const btn = e.target.closest('.remove-priority-btn');
+                if (btn) {
+                    const id = parseInt(btn.dataset.id);
+                    if (id) deletePriorityById(id);
+                }
+            });
+
+            dom.addPriorityBtn.addEventListener('click', async () => {
+                const val = dom.newPriorityInput.value.trim();
+                if (!val) return;
+                await savePriority(val);
+                dom.newPriorityInput.value = '';
+            });
+
+            dom.protocolGov.addEventListener('change', () => {
+                state.protocol.gov = dom.protocolGov.checked;
+                saveProtocol();
+                generatePrompt();
+            });
+            dom.protocolIntl.addEventListener('change', () => {
+                state.protocol.intl = dom.protocolIntl.checked;
+                saveProtocol();
+                generatePrompt();
+            });
+            dom.protocolNotes.addEventListener('input', debounce(() => {
+                state.protocol.notes = dom.protocolNotes.value;
+                saveProtocol();
+                generatePrompt();
+            }, 300));
+
+            dom.timeSplitContainer.addEventListener('input', (e) => {
+                if (e.target.classList.contains('time-split-input')) {
+                    const key = e.target.dataset.key;
+                    const value = parseInt(e.target.value) || 0;
+                    state.timeSplit[key] = value;
+                    const label = document.getElementById(`ts-val-${key}`);
+                    if (label) label.textContent = `${value}%`;
+                    debounce(saveTimeSplit, 300)();
+                    generatePrompt();
+                }
+            });
+            dom.addProjectBtn.addEventListener('click', async () => {
+                try {
+                    const response = await fetch('/api/projects', { method: 'POST' });
+                    if (response.ok) {
+                        fetchProjects();
+                    } else {
+                        setError("Failed to add project.");
+                    }
+                } catch (err) {
+                    setError("Could not add project.");
+                }
+            });
+
+            // Auto Inbox Snapshot
+            document.getElementById('auto-snapshot-btn').addEventListener('click', async () => {
+                try {
+                    dom.errorMessage.textContent = '';
+                    const loader = document.getElementById('inbox-loader');
+                    loader.classList.remove('hidden');
+                    loader.classList.add('flex');
+                    const res = await fetch('/api/outlook/status');
+                    const s = await res.json();
+                    if (!s.connected) {
+                        loader.classList.add('hidden');
+                        loader.classList.remove('flex');
+                        setError('Connect Outlook first.');
+                        return;
+                    }
+                    const resp = await fetch(`/api/inbox/snapshot?hours=${encodeURIComponent(state.hoursWindow)}`, { method: 'POST' });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.error || 'Snapshot failed');
+                    state.inboxSummary = (data.snapshot || '').split(/\n/).map(s => s.replace(/^[-*]\s+/, '')).join('\n');
+                    state.inboxItems = Array.isArray(data.items) ? data.items : [];
+                    renderInbox();
+                } catch (e) {
+                    setError(`Inbox Snapshot Error: ${e.message}`);
+                } finally {
+                    const loader = document.getElementById('inbox-loader');
+                    loader.classList.add('hidden');
+                    loader.classList.remove('flex');
+                }
+            });
+
+            // Inbox manual add
+            dom.inboxAddBtn.addEventListener('click', () => {
+                const val = (dom.inboxManualInput.value || '').trim();
+                if (!val) return;
+                const items = (state.inboxSummary || '').split(/\n/).filter(Boolean);
+                items.push(val);
+                state.inboxSummary = items.join('\n');
+                dom.inboxManualInput.value = '';
+                renderInbox();
+            });
+
+            dom.inboxList.addEventListener('click', async (e) => {
+                const removeBtn = e.target.closest('.inbox-remove');
+                if (removeBtn) {
+                    const idx = parseInt(removeBtn.dataset.idx);
+                    const items = (state.inboxSummary || '').split(/\n/).map(s => s.trim()).filter(Boolean);
+                    const hasTitle = items.length && /^[A-Za-z].*\d{4}-\d{2}-\d{2}$/.test(items[0]);
+                    const base = hasTitle ? 1 : 0;
+                    if (!isNaN(idx)) {
+                        items.splice(idx + base, 1);
+                        state.inboxSummary = items.join('\n');
+                        renderInbox();
+                    }
+                    return;
+                }
+                const li = e.target.closest('li');
+                if (!li) return;
+                const idx = parseInt(li.dataset.idx);
+                if (isNaN(idx)) return;
+                const item = state.inboxItems[idx];
+                if (!item || !item.id) return;
+                try {
+                    const res = await fetch(`/api/outlook/message?id=${encodeURIComponent(item.id)}`);
+                    const msg = await res.json();
+                    if (!res.ok) throw new Error(msg.error || 'Failed to load message');
+                    const isHtml = (msg?.body?.contentType || '').toLowerCase() === 'html';
+                    openModal(item.subject || '(no subject)', msg?.body?.content || '(no body)', isHtml);
+                } catch (err) {
+                    setError('Could not load email content.');
+                }
+            });
+
+            dom.generateBriefBtn.addEventListener('click', async () => {
+                dom.briefingLoader.classList.remove('hidden');
+                dom.briefingLoader.classList.add('flex');
+                dom.briefingOutput.textContent = '';
+                setError('');
+
+                const meetingLine = (m) => {
+                    const t = m.time || timeHHMM(m.start?.dateTime) || timeHHMM(m.start);
+                    const subject = m.subject || m.title || '(no subject)';
+                    const location = (m.location && (m.location.displayName || m.location)) || 'VC';
+                    return `${t || '—'} ${subject} (${location})`;
+                };
+
+                const payload = {
+                    date: state.date,
+                    priorities: state.priorities.map(p => p.text).join(" | "),
+                    inboxSummary: state.inboxSummary,
+                    meetings: state.meetings.map(meetingLine).join("; "),
+                    projects: state.projects.map(p => `${p.name}[health:${p.health}] risk:${p.risk} action:${p.action}`).join("; "),
+                    protocol: state.protocol,
+                    timeSplit: state.timeSplit,
+                };
+                
+                try {
+                    const response = await fetch('/api/generate_brief', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'Unknown error');
+                    const renderSection = (title, content) => {
+                        if (!content) return '';
+                        return `<div><div class=\"text-xs uppercase tracking-wider text-slate-500 mb-1\">${title}</div><div class=\"rounded-xl border border-slate-200 bg-white/60 p-3 prose prose-sm max-w-none\">${renderMarkdown(content)}</div></div>`;
+                    };
+                    const html = [
+                        renderSection('Brief', data.brief),
+                        renderSection('Decisions Required', data.decisions_required),
+                        renderSection('Drafts', data.drafts),
+                        renderSection('Followups', data.followups),
+                        renderSection('Risks', data.risks),
+                        renderSection('Next Actions', data.next_actions),
+                    ].join('');
+                    dom.briefingOutput.innerHTML = html || '<div class=\"text-slate-500\">No content.</div>';
+                } catch (err) {
+                    setError(`Briefing Error: ${err.message}`);
+                } finally {
+                    dom.briefingLoader.classList.add('hidden');
+                    dom.briefingLoader.classList.remove('flex');
+                }
+            });
+            
+            dom.projectsList.addEventListener('click', async (e) => {
+                 const button = e.target.closest('.remove-project-btn');
+                 if (button) {
+                     const id = button.dataset.id;
+                     try {
+                         const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+                         if (response.ok) {
+                             fetchProjects();
+                         } else {
+                             setError("Failed to delete project.");
+                         }
+                     } catch (err) {
+                         setError("Could not delete project.");
+                     }
+                 }
+            });
+
+            dom.projectsList.addEventListener('input', (e) => {
+                const { id, field } = e.target.dataset;
+                const projectId = parseInt(id);
+                if (projectId && field) {
+                    const project = state.projects.find(p => p.id === projectId);
+                    if (project) {
+                        const value = e.target.type === 'range' ? parseInt(e.target.value) : e.target.value;
+                        project[field] = value;
+                        if (field === 'health') {
+                            document.getElementById(`health-value-${projectId}`).textContent = `${value}%`;
+                        }
+                        debouncedSaveProject(projectId);
+                    }
+                }
+            });
+
+            // ... (other event listeners: priorities, protocol, etc.)
+            
+            // --- MODAL ---
+            const ensureModal = () => {
+                if (dom.modal) return;
+                const wrapper = document.createElement('div');
+                wrapper.id = 'mail-modal';
+                wrapper.className = 'fixed inset-0 hidden items-center justify-center bg-black/40 z-50';
+                wrapper.innerHTML = `
+                    <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-[90%] max-h-[85vh] overflow-hidden flex flex-col">
+                        <div class="flex items-center justify-between px-4 py-3 border-b shrink-0">
+                            <div id="modal-title" class="font-semibold"></div>
+                            <button id="modal-close" class="text-slate-500 hover:text-slate-800">Close</button>
+                        </div>
+                        <div id="modal-body" class="p-4 overflow-auto prose prose-sm max-w-none grow" style="max-height:75vh"></div>
+                    </div>`;
+                document.body.appendChild(wrapper);
+                dom.modal = wrapper;
+                dom.modalTitle = wrapper.querySelector('#modal-title');
+                dom.modalBody = wrapper.querySelector('#modal-body');
+                dom.modalClose = wrapper.querySelector('#modal-close');
+                dom.modal.addEventListener('click', (e) => {
+                    if (e.target === dom.modal) closeModal();
+                });
+                dom.modalClose.addEventListener('click', closeModal);
+            };
+            const openModal = (title, body, isHtml=false) => {
+                ensureModal();
+                dom.modalTitle.textContent = title || '';
+                if (isHtml) {
+                    // Render Outlook-provided HTML directly
+                    dom.modalBody.innerHTML = body || '';
+                } else {
+                    dom.modalBody.innerHTML = renderMarkdown(body || '');
+                }
+                dom.modal.classList.remove('hidden');
+                dom.modal.classList.add('flex');
+            };
+            const closeModal = () => {
+                if (!dom.modal) return;
+                dom.modal.classList.add('hidden');
+                dom.modal.classList.remove('flex');
+            };
+
+            // --- INITIALIZATION ---
+            const initialize = () => {
+                lucide.createIcons();
+                // ... (set initial values for date, protocol, etc.)
+                dom.currentDate.value = state.date;
+                fetchProjects();
+                fetchPriorities();
+                fetchProtocol();
+                fetchTimeSplit();
+                fetchMeetings();
+                fetchOutlookData();
+                generatePrompt();
+                renderInbox();
+                ensureModal();
+            };
+
+            initialize();
+        });
+    </script>
+</body>
+</html>
