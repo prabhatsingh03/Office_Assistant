@@ -1,0 +1,6 @@
+Flask
+Flask-SQLAlchemy
+msal
+python-dotenv
+requests
+google-generativeai
