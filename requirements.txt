@@ -4,3 +4,4 @@ msal
 python-dotenv
 requests
 google-generativeai
+gunicorn
