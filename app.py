@@ -152,7 +152,7 @@ CLIENT_SECRET = os.getenv("MS_CLIENT_SECRET")
 AUTHORITY = f"https://login.microsoftonline.com/{os.getenv('MS_TENANT_ID', 'common')}"
 REDIRECT_PATH = "/api/outlook/callback"
 # Force localhost so it matches Azure registered redirect
-REDIRECT_URI = "http://localhost:5000" + REDIRECT_PATH
+REDIRECT_URI = "https://office-assistant-7oam.onrender" + REDIRECT_PATH
 # Use delegated Graph scopes only (Azure adds OIDC scopes automatically)
 SCOPES = ["User.Read", "Mail.ReadWrite", "Mail.Send", "Calendars.ReadWrite"]
 GRAPH_API_ENDPOINT = "https://graph.microsoft.com/v1.0"
